@@ -3,7 +3,7 @@ import { authService } from './auth';
 // HTTP Interceptor for automatic JWT token management
 export class HttpInterceptor {
   private static instance: HttpInterceptor;
-  private baseURL = '/api/v1'; // Utilise le proxy Vite
+  private baseURL = 'http://localhost:8082/api/v1'; // Utilise le proxy Vite
 
   private constructor() {}
 
@@ -109,7 +109,30 @@ export class HttpInterceptor {
 
   // Convenience methods for different HTTP verbs
   public async get(url: string, options: RequestInit = {}): Promise<Response> {
-    return this.fetch(url, { ...options, method: 'GET' });
+    const fullUrl = url.startsWith('http') ? url : `${this.baseURL}${url}`;
+    console.log(`[HTTP GET] ${fullUrl}`, { options });
+    
+    try {
+      const response = await this.fetch(url, { ...options, method: 'GET' });
+      console.log(`[HTTP GET ${fullUrl}] Réponse:`, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
+      // Log response body for debugging (only for JSON responses)
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const clone = response.clone(); // Clone pour pouvoir lire le corps deux fois si nécessaire
+        const data = await clone.json().catch(() => null);
+        console.log(`[HTTP GET ${fullUrl}] Corps de la réponse:`, data);
+      }
+      
+      return response;
+    } catch (error) {
+      console.error(`[HTTP GET ${fullUrl}] Erreur:`, error);
+      throw error;
+    }
   }
 
   public async post(url: string, data?: any, options: RequestInit = {}): Promise<Response> {
@@ -121,6 +144,7 @@ export class HttpInterceptor {
   }
 
   public async put(url: string, data?: any, options: RequestInit = {}): Promise<Response> {
+    console.log(`PUT ${url}`, { data, options });
     return this.fetch(url, {
       ...options,
       method: 'PUT',
@@ -129,7 +153,19 @@ export class HttpInterceptor {
   }
 
   public async delete(url: string, options: RequestInit = {}): Promise<Response> {
+    console.log(`DELETE ${url}`, { options });
     return this.fetch(url, { ...options, method: 'DELETE' });
+  }
+
+  private async getAuthHeaders(): Promise<Headers> {
+    const headers = new Headers();
+    if (authService.isAuthenticated()) {
+      const token = authService.getAccessToken();
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+    }
+    return headers;
   }
 }
 

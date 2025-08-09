@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Employee, EmployeeFormData } from '@/types/employee';
 import { employeeApi } from '@/services/api';
+import { authService } from '@/services/auth';
 
 export const useEmployees = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -8,39 +9,80 @@ export const useEmployees = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Load all employees
-  const loadEmployees = async () => {
+  const loadEmployees = useCallback(async () => {
+    console.log('Chargement des employés...');
     try {
       setLoading(true);
       setError(null);
+      console.log('Appel à employeeApi.getAll()...');
       const result = await employeeApi.getAll();
+      console.log('Résultat de employeeApi.getAll():', result);
       
       if (result.error) {
+        console.error('Erreur du serveur:', result.error);
         setError(result.error);
       } else if (result.data) {
+        console.log('Employés chargés:', result.data);
         setEmployees(result.data);
+      } else {
+        console.error('Aucune donnée reçue du serveur');
+        setError('Aucune donnée reçue du serveur');
       }
     } catch (err) {
-      setError('Erreur lors du chargement des employés');
+      console.error('Erreur lors du chargement des employés:', err);
+      setError(`Erreur lors du chargement des employés: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Load employees when component mounts and when auth token changes
+  useEffect(() => {
+    if (authService.isAuthenticated()) {
+      console.log('Authentifié, chargement des employés...');
+      loadEmployees();
+    } else {
+      console.log('Non authentifié, nettoyage des employés');
+      setEmployees([]);
+      setLoading(false);
+    }
+  }, [loadEmployees]);
 
   // Create new employee
   const createEmployee = async (employeeData: EmployeeFormData): Promise<boolean> => {
     try {
+      console.log('Création d\'un nouvel employé:', employeeData);
       const result = await employeeApi.create(employeeData);
+      console.log('Réponse de l\'API (création):', result);
       
       if (result.error) {
+        console.error('Erreur lors de la création:', result.error);
         setError(result.error);
         return false;
-      } else if (result.data) {
-        setEmployees(prev => [...prev, result.data!]);
+      } 
+      
+      if (result.data) {
+        // Créer un nouvel objet avec les données reçues
+        const newEmployee = {
+          ...result.data,
+          // Si l'ID n'est pas fourni, on utilise un ID temporaire qui sera mis à jour au prochain rafraîchissement
+          id: result.data.id || Date.now()
+        };
+        
+        console.log('Employé créé avec succès, données:', newEmployee);
+        setEmployees(prev => [...prev, newEmployee]);
+        // Recharger les employés pour s'assurer d'avoir les bonnes données
+        loadEmployees();
         return true;
+      } else {
+        console.error('Aucune donnée dans la réponse:', result);
+        setError('Aucune donnée reçue du serveur après création');
+        return false;
       }
-      return false;
     } catch (err) {
-      setError('Erreur lors de la création de l\'employé');
+      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
+      console.error('Erreur lors de la création de l\'employé:', errorMessage, err);
+      setError(`Erreur lors de la création de l'employé: ${errorMessage}`);
       return false;
     }
   };
@@ -83,11 +125,6 @@ export const useEmployees = () => {
       return false;
     }
   };
-
-  // Load employees on mount
-  useEffect(() => {
-    loadEmployees();
-  }, []);
 
   return {
     employees,

@@ -30,30 +30,34 @@ const EmployeeDialog = ({ open, onOpenChange, employee, onSave, mode }: Employee
     lastName: "",
     poste: "",
     email: "",
-    hiringDate: "",
-    enabled: true
+    hiringDate: ""
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof EmployeeFormData, string>>>({});
 
   useEffect(() => {
-    if (employee && mode === 'edit') {
-      setFormData({
-        firstName: employee.firstName,
-        lastName: employee.lastName,
-        poste: employee.poste,
-        email: employee.email,
-        hiringDate: employee.hiringDate.split('T')[0], // Convert to date format
-        enabled: employee.enabled
-      });
+    if (mode === 'edit') {
+      if (employee?.id) {
+        console.log('Initialisation du formulaire d\'édition pour l\'employé:', employee);
+        setFormData({
+          firstName: employee.firstName || "",
+          lastName: employee.lastName || "",
+          poste: employee.poste || "",
+          email: employee.email || "",
+          hiringDate: employee.hiringDate ? employee.hiringDate.split('T')[0] : ""
+        });
+      } else {
+        console.error('Tentative d\'édition d\'un employé invalide:', employee);
+      }
     } else {
+      // Mode ajout - formulaire vide
+      console.log('Initialisation du formulaire d\'ajout');
       setFormData({
         firstName: "",
         lastName: "",
         poste: "",
         email: "",
-        hiringDate: "",
-        enabled: true
+        hiringDate: ""
       });
     }
     setErrors({});
@@ -94,7 +98,12 @@ const EmployeeDialog = ({ open, onOpenChange, employee, onSave, mode }: Employee
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validateForm()) {
-      onSave(formData);
+      // Convert date to complete ISO8601 format
+      const formDataWithISODate = {
+        ...formData,
+        hiringDate: new Date(formData.hiringDate + 'T00:00:00.000Z').toISOString()
+      };
+      onSave(formDataWithISODate);
       onOpenChange(false);
     }
   };
@@ -156,48 +165,33 @@ const EmployeeDialog = ({ open, onOpenChange, employee, onSave, mode }: Employee
 
 
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Poste *</Label>
-              <Select value={formData.poste} onValueChange={(value) => handleInputChange('poste', value)}>
-                <SelectTrigger className={errors.poste ? "border-red-500" : ""}>
-                  <SelectValue placeholder="Sélectionner un poste" />
-                </SelectTrigger>
-                <SelectContent>
-                  {positions.map((position) => (
-                    <SelectItem key={position} value={position}>
-                      {position}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.poste && <p className="text-sm text-red-500">{errors.poste}</p>}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="hiringDate">Date d'embauche *</Label>
-              <Input
-                id="hiringDate"
-                type="date"
-                value={formData.hiringDate}
-                onChange={(e) => handleInputChange('hiringDate', e.target.value)}
-                className={errors.hiringDate ? "border-red-500" : ""}
-              />
-              {errors.hiringDate && <p className="text-sm text-red-500">{errors.hiringDate}</p>}
-            </div>
+          <div className="space-y-2">
+            <Label>Poste *</Label>
+            <Select value={formData.poste} onValueChange={(value) => handleInputChange('poste', value)}>
+              <SelectTrigger className={errors.poste ? "border-red-500" : ""}>
+                <SelectValue placeholder="Sélectionner un poste" />
+              </SelectTrigger>
+              <SelectContent>
+                {positions.map((position) => (
+                  <SelectItem key={position} value={position}>
+                    {position}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.poste && <p className="text-sm text-red-500">{errors.poste}</p>}
           </div>
 
           <div className="space-y-2">
-            <Label>Statut</Label>
-            <Select value={formData.enabled ? "enabled" : "disabled"} onValueChange={(value) => handleInputChange('enabled', value === "enabled")}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="enabled">Actif</SelectItem>
-                <SelectItem value="disabled">Inactif</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label htmlFor="hiringDate">Date d'embauche *</Label>
+            <Input
+              id="hiringDate"
+              type="date"
+              value={formData.hiringDate}
+              onChange={(e) => handleInputChange('hiringDate', e.target.value)}
+              className={errors.hiringDate ? "border-red-500" : ""}
+            />
+            {errors.hiringDate && <p className="text-sm text-red-500">{errors.hiringDate}</p>}
           </div>
 
           <DialogFooter>

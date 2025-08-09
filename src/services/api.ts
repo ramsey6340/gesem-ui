@@ -4,18 +4,58 @@ import { authService } from './auth';
 
 // Helper function to handle API responses
 const handleApiResponse = async <T>(response: Response): Promise<ApiResponse<T>> => {
-  if (!response.ok) {
-    // Handle HTTP errors
-    const errorData = await response.json().catch(() => null);
+  console.log('=== Début handleApiResponse ===');
+  console.log('URL:', response.url);
+  console.log('Status:', response.status);
+  console.log('Headers:', Object.fromEntries(response.headers.entries()));
+  
+  try {
+    const contentType = response.headers.get('content-type');
+    let responseData;
+    
+    if (contentType && contentType.includes('application/json')) {
+      const responseText = await response.text();
+      console.log('Réponse brute:', responseText);
+      
+      try {
+        responseData = JSON.parse(responseText);
+        console.log('Données JSON parsées:', responseData);
+      } catch (e) {
+        console.error('Erreur lors du parsing JSON:', e);
+        return {
+          error: 'Format de réponse invalide',
+          data: null,
+          code: response.status,
+          state: null
+        };
+      }
+    } else {
+      const text = await response.text();
+      console.log('Réponse non-JSON reçue:', text);
+      throw new Error('Réponse non-JSON reçue du serveur');
+    }
+
+    if (!response.ok) {
+      console.error('Erreur HTTP:', response.status, responseData);
+      return {
+        error: responseData?.error || `HTTP Error: ${response.status}`,
+        data: null,
+        code: response.status,
+        state: responseData?.state || null
+      };
+    }
+
+    console.log('Réponse API traitée avec succès:', responseData);
+    return responseData;
+  } catch (error) {
+    console.error('Erreur lors du traitement de la réponse:', error);
     return {
-      error: errorData?.error || `HTTP Error: ${response.status}`,
+      error: error instanceof Error ? error.message : 'Erreur inconnue lors du traitement de la réponse',
       data: null,
-      code: response.status,
+      code: response.status || 500,
       state: null
     };
   }
-  
-  return await response.json();
 };
 
 // Authentication API

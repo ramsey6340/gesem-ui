@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +13,7 @@ import EmployeeDialog from "@/components/EmployeeDialog";
 import { useNavigate } from "react-router-dom";
 import { useEmployees } from "@/hooks/useEmployees";
 import { authApi } from "@/services/api";
+import { authService } from "@/services/auth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Available positions for filtering
@@ -31,12 +32,37 @@ const AdminDashboard = () => {
   const { employees, loading, error, createEmployee, updateEmployee, deleteEmployee, clearError } = useEmployees();
   const [filters, setFilters] = useState<EmployeeFilters>({
     search: "",
-    poste: "all",
-    status: "all"
+    poste: "all"
   });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | undefined>();
   const [dialogMode, setDialogMode] = useState<'add' | 'edit'>('add');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Log d'état initial
+  useEffect(() => {
+    console.log('AdminDashboard - État initial:', {
+      isAuthenticated: authService.isAuthenticated(),
+      accessToken: authService.getAccessToken() ? '***' : 'non défini',
+      employeesCount: employees.length,
+      loading,
+      error
+    });
+  }, []);
+
+  // Log quand les employés changent
+  useEffect(() => {
+    if (employees.length > 0) {
+      console.log('AdminDashboard - Employés chargés:', employees);
+    }
+  }, [employees]);
+
+  // Log des erreurs
+  useEffect(() => {
+    if (error) {
+      console.error('AdminDashboard - Erreur:', error);
+    }
+  }, [error]);
 
   // Filtered employees based on search and filters
   const filteredEmployees = useMemo(() => {
@@ -48,26 +74,21 @@ const AdminDashboard = () => {
         employee.poste.toLowerCase().includes(filters.search.toLowerCase());
       
       const matchesPoste = filters.poste === "all" || employee.poste === filters.poste;
-      const matchesStatus = filters.status === 'all' || 
-        (filters.status === 'enabled' && employee.enabled) ||
-        (filters.status === 'disabled' && !employee.enabled);
       
-      return matchesSearch && matchesPoste && matchesStatus;
+      return matchesSearch && matchesPoste;
     });
   }, [employees, filters]);
 
   // Statistics
   const stats = useMemo(() => {
     const total = employees.length;
-    const active = employees.filter(emp => emp.enabled).length;
-    const inactive = employees.filter(emp => !emp.enabled).length;
-    const departments = [...new Set(employees.map(emp => emp.poste))];
-    const posteCounts = positions.reduce((acc, poste) => {
+    const postes = [...new Set(employees.map(emp => emp.poste))];
+    const posteCounts = postes.reduce((acc, poste) => {
       acc[poste] = employees.filter(emp => emp.poste === poste).length;
       return acc;
     }, {} as Record<string, number>);
     
-    return { total, active, inactive, departments, posteCounts };
+    return { total, postes, posteCounts };
   }, [employees]);
 
   const handleAddEmployee = () => {
@@ -77,21 +98,47 @@ const AdminDashboard = () => {
   };
 
   const handleEditEmployee = (employee: Employee) => {
+    // S'assurer que l'employé a un ID valide
+    if (!employee?.id) {
+      console.error('Tentative d\'édition d\'un employé sans ID valide:', employee);
+      setFormError('Impossible de modifier cet employé : ID manquant');
+      return;
+    }
+    
+    // Mettre à jour l'employé sélectionné et le mode
     setSelectedEmployee(employee);
     setDialogMode('edit');
-    setDialogOpen(true);
+    // Ne pas ouvrir le dialogue tant que l'état n'est pas mis à jour
+    setTimeout(() => {
+      setDialogOpen(true);
+    }, 0);
   };
 
   const handleDeleteEmployee = (employeeId: number) => {
+    if (!employeeId) {
+      console.error('Tentative de suppression avec un ID invalide:', employeeId);
+      setFormError('Impossible de supprimer : ID d\'employé invalide');
+      return;
+    }
+    console.log('Suppression de l\'employé ID:', employeeId);
     deleteEmployee(employeeId);
   };
 
   const handleSaveEmployee = (data: EmployeeFormData) => {
+    console.log('Sauvegarde en mode:', dialogMode, 'avec données:', data);
+    
     if (dialogMode === 'add') {
       createEmployee(data);
-    } else if (selectedEmployee) {
+    } else if (selectedEmployee?.id) {
+      console.log('Mise à jour de l\'employé ID:', selectedEmployee.id);
       updateEmployee(selectedEmployee.id, data);
+    } else {
+      console.error('Impossible de sauvegarder : employé sélectionné invalide', selectedEmployee);
+      setFormError('Impossible de sauvegarder : employé invalide');
     }
+    
+    // Fermer le dialogue après la sauvegarde
+    setDialogOpen(false);
   };
 
   const handleLogout = () => {
@@ -102,13 +149,7 @@ const AdminDashboard = () => {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
 
-  const formatSalary = (salary: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR',
-      minimumFractionDigits: 0
-    }).format(salary);
-  };
+
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fr-FR');
@@ -143,7 +184,7 @@ const AdminDashboard = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Employés</CardTitle>
@@ -156,31 +197,11 @@ const AdminDashboard = () => {
           
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Employés Actifs</CardTitle>
-              <div className="h-4 w-4 bg-green-500 rounded-full" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.active}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Employés Inactifs</CardTitle>
-              <div className="h-4 w-4 bg-red-500 rounded-full" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats.inactive}</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Départements</CardTitle>
+              <CardTitle className="text-sm font-medium">Postes Différents</CardTitle>
               <Building2 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.departments.length}</div>
+              <div className="text-2xl font-bold">{stats.postes.length}</div>
             </CardContent>
           </Card>
         </div>
@@ -203,6 +224,31 @@ const AdminDashboard = () => {
           </CardHeader>
           
           <CardContent>
+            {/* Error Display */}
+            {error && (
+              <Alert className="mb-6 border-red-200 bg-red-50">
+                <AlertDescription className="text-red-800">
+                  {error}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={clearError}
+                    className="ml-2 h-auto p-1 text-red-600 hover:text-red-800"
+                  >
+                    Fermer
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Loading State */}
+            {loading && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                <span className="ml-2 text-gray-600">Chargement des employés...</span>
+              </div>
+            )}
+
             {/* Filters */}
             <div className="flex flex-col sm:flex-row gap-4 mb-6">
               <div className="flex-1">
@@ -223,29 +269,15 @@ const AdminDashboard = () => {
               >
                 <SelectTrigger className="w-48">
                   <Filter className="w-4 h-4 mr-2" />
-                  <SelectValue placeholder="Tous les départements" />
+                  <SelectValue placeholder="Tous les postes" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tous les départements</SelectItem>
-                  {stats.departments.map((dept) => (
-                    <SelectItem key={dept} value={dept}>
-                      {dept}
+                  <SelectItem value="all">Tous les postes</SelectItem>
+                  {stats.postes.map((poste) => (
+                    <SelectItem key={poste} value={poste}>
+                      {poste}
                     </SelectItem>
                   ))}
-                </SelectContent>
-              </Select>
-              
-              <Select 
-                value={filters.status} 
-                onValueChange={(value: 'all' | 'enabled' | 'disabled') => setFilters(prev => ({ ...prev, status: value }))}
-              >
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="enabled">Actifs</SelectItem>
-                  <SelectItem value="disabled">Inactifs</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -264,10 +296,7 @@ const AdminDashboard = () => {
                   <TableRow>
                     <TableHead>Employé</TableHead>
                     <TableHead>Poste</TableHead>
-                    <TableHead>Département</TableHead>
-                    <TableHead>Salaire</TableHead>
                     <TableHead>Date d'embauche</TableHead>
-                    <TableHead>Statut</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -291,22 +320,10 @@ const AdminDashboard = () => {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>{employee.poste}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{employee.department}</Badge>
+                        <Badge variant="secondary">{employee.poste}</Badge>
                       </TableCell>
-                      <TableCell className="font-medium">
-                        {formatSalary(employee.salary)}
-                      </TableCell>
-                      <TableCell>{formatDate(employee.hireDate)}</TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={employee.enabled ? 'default' : 'destructive'}
-                          className={employee.enabled ? 'bg-green-100 text-green-800' : ''}
-                        >
-                          {employee.enabled ? 'Actif' : 'Inactif'}
-                        </Badge>
-                      </TableCell>
+                      <TableCell>{formatDate(employee.hiringDate)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end space-x-2">
                           <Button

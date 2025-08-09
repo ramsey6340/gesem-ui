@@ -27,10 +27,8 @@ export interface EmployeeFormData {
   firstName: string;
   lastName: string;
   poste: string;
-  department: string;
   email: string;
   hiringDate: string;
-  enabled: boolean;
 }
 
 // Login request/response
@@ -52,5 +50,4 @@ export interface LoginResponse {
 export interface EmployeeFilters {
   search: string;
   poste: string | 'all';
-  status: 'all' | 'enabled' | 'disabled';
 }
