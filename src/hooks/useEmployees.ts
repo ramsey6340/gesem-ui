@@ -61,22 +61,13 @@ export const useEmployees = () => {
         return false;
       } 
       
-      if (result.data) {
-        // Créer un nouvel objet avec les données reçues
-        const newEmployee = {
-          ...result.data,
-          // Si l'ID n'est pas fourni, on utilise un ID temporaire qui sera mis à jour au prochain rafraîchissement
-          id: result.data.id || Date.now()
-        };
-        
-        console.log('Employé créé avec succès, données:', newEmployee);
-        setEmployees(prev => [...prev, newEmployee]);
-        // Recharger les employés pour s'assurer d'avoir les bonnes données
-        loadEmployees();
+      if (result.data && result.data.id) {
+        console.log('Employé créé avec succès, ID:', result.data.id);
+        setEmployees(prev => [...prev, result.data!]);
         return true;
       } else {
-        console.error('Aucune donnée dans la réponse:', result);
-        setError('Aucune donnée reçue du serveur après création');
+        console.error('Données de réponse invalides ou ID manquant:', result);
+        setError('Réponse invalide du serveur lors de la création');
         return false;
       }
     } catch (err) {
