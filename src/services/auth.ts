@@ -82,7 +82,7 @@ export const authService = {
     }
 
     try {
-      const response = await fetch('http://localhost:8081/api/v1/auth/refresh', {
+      const response = await fetch('http://localhost:8082/api/v1/auth/refresh', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
