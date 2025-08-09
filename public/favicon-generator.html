@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Favicon Generator</title>
+</head>
+<body>
+    <canvas id="canvas" width="32" height="32"></canvas>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Background circle
+        ctx.fillStyle = '#2563eb';
+        ctx.beginPath();
+        ctx.arc(16, 16, 15, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Briefcase
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(6, 12, 20, 14);
+        
+        // Handle
+        ctx.fillRect(12, 9, 8, 3);
+        
+        // People representation (simplified)
+        ctx.fillStyle = '#2563eb';
+        ctx.beginPath();
+        ctx.arc(11, 18, 2, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        ctx.beginPath();
+        ctx.arc(21, 18, 2, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        // Convert to ICO format would require additional processing
+        // For now, we'll use the SVG directly in HTML
+    </script>
+</body>
+</html>
